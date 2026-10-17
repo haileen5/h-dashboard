@@ -256,6 +256,31 @@ class TicketsInboxLivewireTest extends TestCase
     }
 
     // =====================================================================
+    // S4 — Persian folding: Arabic «ك/ي» input must find Persian «ک/ی» (#1056)
+    // =====================================================================
+
+    public function test_search_folds_arabic_ye_kaf(): void
+    {
+        ['user' => $user] = $this->createUserWithUnit(['view_assigned_tickets']);
+        $this->actingAs($user);
+
+        $this->createTicket(['subject' => 'مشکل شبکه', 'content' => 'توضیحات شبکه']);
+        $this->createTicket(['subject' => 'مشکل چاپگر', 'content' => 'پرینتر خراب']);
+
+        // Arabic keheh (ك) + Arabic yeh (ي) instead of Persian «ک/ی»
+        Livewire::test('tickets.inbox')
+            ->set('search', 'مشكل شبكه')
+            ->assertSee('مشکل شبکه')
+            ->assertDontSee('چاپگر');
+
+        // Content search folds too
+        Livewire::test('tickets.inbox')
+            ->set('search', 'توضيحات')
+            ->assertSee('مشکل شبکه')
+            ->assertDontSee('چاپگر');
+    }
+
+    // =====================================================================
     // S5 — Jalali date filter
     // =====================================================================
 

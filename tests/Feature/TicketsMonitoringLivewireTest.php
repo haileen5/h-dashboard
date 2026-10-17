@@ -212,6 +212,26 @@ class TicketsMonitoringLivewireTest extends TestCase
             ->assertDontSee('TKT-2002');
     }
 
+    // ==================== Persian folding: Arabic «ك/ي» finds «ک/ی» (#1056) ====================
+
+    public function test_search_folds_arabic_ye_kaf(): void
+    {
+        $result = $this->createUserWithUnit(['view_all_tickets']);
+        $user = $result['user'];
+        $unit = $result['unit'];
+        $this->actingAs($user);
+
+        $this->makeTicket($unit, ['subject' => 'مشکل شبکه', 'ticket_code' => 'TKT-2001']);
+        $this->makeTicket($unit, ['subject' => 'مشکل چاپگر', 'ticket_code' => 'TKT-2002']);
+
+        // Arabic keheh (ك) + Arabic yeh (ي) instead of Persian «ک/ی»
+        Livewire::test('tickets.monitoring')
+            ->set('search', 'مشكل شبكه')
+            ->assertSee('TKT-2001')
+            ->assertDontSee('TKT-2002')
+            ->assertDontSee('TKT-9999');
+    }
+
     // ==================== Jalali date filter test ====================
 
     public function test_jalali_dates(): void
