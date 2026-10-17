@@ -31,8 +31,15 @@ return new class extends Component
     public function mount(): void
     {
         $v = Cache::get('maps_version', 0);
-        $this->regions = Cache::remember('unit_map:regions:v' . $v, 300, function () {
+
+        // #1032: the county list follows the accessible-region scope — the
+        // same shape as maps/county. Without this any map user saw every
+        // county name in the system, not just the ones their units cover.
+        $accessibleRegionIds = $this->accessibleRegionIds();
+
+        $this->regions = Cache::remember('unit_map:regions:v' . $v . ':' . md5(implode(',', $accessibleRegionIds->all())), 300, function () use ($accessibleRegionIds) {
             return Region::where('type', 'county')
+                ->whereIn('id', $accessibleRegionIds)
                 ->select('id', 'name')
                 ->get()
                 ->toArray();
@@ -65,10 +72,19 @@ return new class extends Component
             return;
         }
 
-        $cacheKey = 'county_boundaries_v' . Cache::get('maps_version', 0) . '_' . md5(implode(',', $this->selectedRegions));
+        // #1032: `selectedRegions` is client-settable, so BOTH the query and
+        // the cache key must be bound to the accessible-region scope. Fixing
+        // only the query leaves the pre-fix half-wrong state WORSE: user A's
+        // cached geometry would be served to user B with no query at all.
+        // Cache key shape follows maps/county: md5(accessibleRegionIds).
+        $accessibleRegionIds = $this->accessibleRegionIds();
+        $cacheKey = 'county_boundaries_v' . Cache::get('maps_version', 0)
+            . '_' . md5(implode(',', $accessibleRegionIds->all()))
+            . '_' . md5(implode(',', $this->selectedRegions));
 
-        $counties = Cache::remember($cacheKey, 300, function () {
+        $counties = Cache::remember($cacheKey, 300, function () use ($accessibleRegionIds) {
             return Region::whereIn('id', $this->selectedRegions)
+                ->whereIn('regions.id', $accessibleRegionIds)  // Organizational Scope — see #1032
                 ->whereNotNull('boundary_id')
                 ->with('boundary')
                 ->get()
@@ -83,6 +99,21 @@ return new class extends Component
         });
 
         $this->dispatch('county-boundaries-loaded', counties: $counties);
+    }
+
+    /**
+     * #1032: regions whose scope includes at least one accessible unit —
+     * the same derivation maps/county uses for its list and cache key.
+     *
+     * @return \Illuminate\Support\Collection<array-key, int>
+     */
+    private function accessibleRegionIds(): \Illuminate\Support\Collection
+    {
+        $accessibleIds = app(AccessService::class)->accessibleUnitIds();
+
+        return Unit::query()->whereIn('id', $accessibleIds)
+            ->whereNotNull('region_id')
+            ->pluck('region_id');
     }
 
     public function updatedSelectedSubTypes(): void
