@@ -9,9 +9,12 @@
     <title>{{ isset($title) ? $title.' - '.config('app.name') : config('app.name') }}</title>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    {{-- Issue #984 (CSS half): page-specific Leaflet stylesheets land in
+         `@stack('styles')` below — the draw and routing stylesheets used to be
+         linked globally here (~11.5 KB of parser-blocking CSS on every page for
+         three pages that use them). Their pages push them now. --}}
+    @stack('styles')
     <link rel="stylesheet" href="{{ asset('css/leaflet/leaflet.css') }}" />
-    <link rel="stylesheet" href="{{ asset('css/leaflet/leaflet.draw.css') }}" />
-    <link rel="stylesheet" href="{{ asset('css/leaflet/leaflet-routing-machine.css') }}" />
     <link rel="stylesheet" href="{{ asset('css/other/jalalidatepicker.min.css') }}" />
 
 
@@ -22,6 +25,9 @@
            maps/route + maps/route2 -> leaflet-routing-machine
            units/map                -> leaflet.draw
            todo/todo                -> full-calendar
+         The CSS half is done too: the draw and routing stylesheets are no
+         longer linked above — their pages push them into `@stack('styles')` in
+         <head>, before first paint.
          Leaflet itself and jalalidatepicker stay global — they are used by most
          pages. Do not move a library back here without re-measuring. --}}
     <script src="{{ asset('js/leaflet/leaflet.js') }}"></script>
