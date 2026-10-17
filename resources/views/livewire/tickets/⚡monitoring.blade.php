@@ -10,12 +10,14 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Url;
 use Livewire\Attributes\Computed;
 use Mary\Traits\Toast;
+use App\Traits\PersianNormalizer;
 use Illuminate\Support\Facades\Auth;
 
 new class extends Component
 {
     use WithPagination;
     use Toast;
+    use PersianNormalizer;
 
     public bool $showHelpModal = false;
 
@@ -117,9 +119,12 @@ new class extends Component
         }
 
         if (!empty($this->search)) {
-            $query->where(function ($q) {
-                $q->where('subject', 'like', '%' . $this->search . '%')
-                    ->orWhere('ticket_code', 'like', '%' . $this->search . '%');
+            // #1056: fold both the term and the column — Ticket has no
+            // save-time normalization on subject. Content is not searched here.
+            $s = self::foldedTerm($this->search);
+            $query->where(function ($q) use ($s) {
+                $q->whereRaw(self::foldSeparatorsSql('subject') . ' LIKE ?', ["%{$s}%"])
+                    ->orWhere('ticket_code', 'LIKE', "%{$s}%");
             });
         }
 

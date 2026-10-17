@@ -15,12 +15,14 @@ use Livewire\Attributes\Computed;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use App\Services\CacheInvalidationServiceInterface;
+use App\Traits\PersianNormalizer;
 use Illuminate\Support\Facades\Auth;
 
 new class extends Component
 {
     use WithPagination;
     use WithFileUploads;
+    use PersianNormalizer;
 
     #[Url]
     public string $search = '';
@@ -156,10 +158,13 @@ new class extends Component
             }
         }
         if (!empty($this->search)) {
-            $query->where(function ($q) {
-                $q->where('subject', 'like', '%' . $this->search . '%')
-                    ->orWhere('ticket_code', 'like', '%' . $this->search . '%')
-                    ->orWhere('content', 'like', '%' . $this->search . '%');
+            // #1056: fold both the term and the column — Ticket has no
+            // save-time normalization on subject/content.
+            $s = self::foldedTerm($this->search);
+            $query->where(function ($q) use ($s) {
+                $q->whereRaw(self::foldSeparatorsSql('subject') . ' LIKE ?', ["%{$s}%"])
+                    ->orWhere('ticket_code', 'LIKE', "%{$s}%")
+                    ->orWhereRaw(self::foldSeparatorsSql('content') . ' LIKE ?', ["%{$s}%"]);
             });
         }
 
